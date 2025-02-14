@@ -1,0 +1,33 @@
+name: Deploy to production # Name of the workflow
+
+on:
+  push:
+    branches: [production] # Runs when code is pushed to the main branch
+
+jobs:
+  redeploy_everything: # Job name
+    runs-on: ubuntu-latest # Runs on the latest Ubuntu machine
+    name: Deploying everything to the production cluster
+
+    steps:
+      - name: Setup SSH Key # Step 1: Prepare SSH key for authentication
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
+          chmod 700 ~/ssh_key  # Secure the SSH key
+          mkdir -p ~/.ssh  # Ensure the .ssh directory exists
+          touch ~/.ssh/known_hosts  # Create a known_hosts file
+          echo "${{ secrets.KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Deploy Application to Production Server
+        run: |
+          ssh -i ~/ssh_key root@74.327.137.434 -t "
+            cd week-25-ci-next-app/ &&
+            git pull origin main &&  # Pull the latest code
+            export PATH=/root/.nvm/versions/node/v22.13.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin &&
+            npm install -g pnpm &&  # Install pnpm globally
+            pnpm install &&  # Install dependencies
+            pnpm run build &&  # Build the project
+            pm2 restart fe-sever &&  # Restart frontend server
+            pm2 restart http-sever &&  # Restart HTTP server
+            pm2 restart ws-sever  # Restart WebSocket server
+          "
